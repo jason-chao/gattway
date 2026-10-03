@@ -31,7 +31,12 @@ if [ ! -d "$INSTALL_DIR/.venv" ]; then
     "$PYTHON" -m venv "$INSTALL_DIR/.venv"
 fi
 "$INSTALL_DIR/.venv/bin/pip" install --quiet --upgrade pip
-"$INSTALL_DIR/.venv/bin/pip" install --quiet --upgrade "$SRC_DIR"
+# Build from a throw-away copy: pip run as root would otherwise leave root-owned
+# build/ and *.egg-info directories in the checkout, which the user owns.
+BUILD_DIR=$(mktemp -d)
+trap 'rm -rf "$BUILD_DIR"' EXIT
+tar -C "$SRC_DIR" --exclude=.git --exclude=.venv --exclude=build --exclude='*.egg-info' -cf - . | tar -C "$BUILD_DIR" -xf -
+"$INSTALL_DIR/.venv/bin/pip" install --quiet --upgrade "$BUILD_DIR"
 
 install -m 0755 "$SRC_DIR/deploy/prepare-radios.sh" "$INSTALL_DIR/prepare-radios.sh"
 if [ ! -f "$CONFIG" ]; then
@@ -44,14 +49,20 @@ if [ ! -f "$INSTALL_DIR/gattway.env" ]; then
 fi
 chown -R "$RUN_USER" "$INSTALL_DIR"
 
-sed -e "s|@USER@|$RUN_USER|g" -e "s|@INSTALL_DIR@|$INSTALL_DIR|g" -e "s|@CONFIG@|$CONFIG|g" \
-    "$SRC_DIR/deploy/gattway.service.in" > /etc/systemd/system/gattway.service
-
-# Membership of the bluetooth group lets the user talk to BlueZ over D-Bus on
-# most distributions; the unit also adds it as a supplementary group.
+# Distributions that ship a "bluetooth" group (Debian, Ubuntu, Raspberry Pi OS
+# and others) grant BlueZ D-Bus access through it. Where there is no such group
+# (Fedora, Arch and others) BlueZ's default policy applies and the unit must not
+# name a group that does not exist, or systemd refuses to start it.
 if getent group bluetooth >/dev/null 2>&1; then
     usermod -a -G bluetooth "$RUN_USER" || true
+    GROUP_FILTER='s|^#BTGROUP ||'
+else
+    echo "no 'bluetooth' group on this host; the service runs with the user's own groups"
+    GROUP_FILTER='/^#BTGROUP /d'
 fi
+
+sed -e "s|@USER@|$RUN_USER|g" -e "s|@INSTALL_DIR@|$INSTALL_DIR|g" -e "s|@CONFIG@|$CONFIG|g" -e "$GROUP_FILTER" \
+    "$SRC_DIR/deploy/gattway.service.in" > /etc/systemd/system/gattway.service
 
 systemctl daemon-reload
 systemctl enable gattway.service

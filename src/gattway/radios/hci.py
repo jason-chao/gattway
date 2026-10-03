@@ -1,6 +1,11 @@
-"""Host radio enumeration on Linux/BlueZ: sysfs, hciconfig and rfkill.
+"""Host radio enumeration on Linux/BlueZ.
 
-The parsers are pure functions so they can be unit-tested on sample text.
+Sources, in order of preference: sysfs for presence and bus, BlueZ over D-Bus
+(``org.bluez.Adapter1``: address and power; available wherever ``bluetoothd``
+runs), ``hciconfig`` as a fallback (deprecated and absent on some
+distributions), and ``rfkill`` for blocking. Every source is optional.
+
+The parsers are pure functions so they can be unit-tested on sample data.
 """
 
 from __future__ import annotations
@@ -110,6 +115,57 @@ def parse_rfkill_list(text: str) -> dict[str, bool]:
     return out
 
 
+def parse_bluez_objects(objects: dict) -> dict[str, tuple[str | None, bool | None]]:
+    """Adapters from BlueZ's ``ObjectManager.GetManagedObjects`` result.
+
+    ``objects`` maps object paths to ``{interface: {property: value}}``; values
+    may be plain or wrapped in an object with a ``.value`` attribute (dbus-fast
+    ``Variant``). Returns ``hciN -> (address, powered)``.
+    """
+    out: dict[str, tuple[str | None, bool | None]] = {}
+    for path, interfaces in (objects or {}).items():
+        props = (interfaces or {}).get("org.bluez.Adapter1")
+        if props is None:
+            continue
+        name = str(path).rsplit("/", 1)[-1]
+        if not re.fullmatch(r"hci\d+", name):
+            continue
+        address = _plain(props.get("Address"))
+        powered = _plain(props.get("Powered"))
+        address = str(address).lower() if address and _ADDR_RE.match(str(address).lower()) else None
+        out[name] = (address, bool(powered) if powered is not None else None)
+    return out
+
+
+def _plain(value):
+    return getattr(value, "value", value)
+
+
+async def _bluez_adapters(timeout: float = 2.0) -> dict[str, tuple[str | None, bool | None]]:
+    """Ask bluetoothd for its adapters over the system bus. Empty on any failure."""
+    try:
+        from dbus_fast import BusType
+        from dbus_fast.aio import MessageBus
+    except ImportError:  # not on Linux, or bleak without its D-Bus backend
+        return {}
+    bus = None
+    try:
+        bus = await asyncio.wait_for(MessageBus(bus_type=BusType.SYSTEM).connect(), timeout)
+        intro = await asyncio.wait_for(bus.introspect("org.bluez", "/"), timeout)
+        obj = bus.get_proxy_object("org.bluez", "/", intro)
+        manager = obj.get_interface("org.freedesktop.DBus.ObjectManager")
+        objects = await asyncio.wait_for(manager.call_get_managed_objects(), timeout)
+        return parse_bluez_objects(objects)
+    except Exception:  # noqa: BLE001 - no system bus, no bluetoothd, no permission: just skip
+        return {}
+    finally:
+        if bus is not None:
+            try:
+                bus.disconnect()
+            except Exception:  # noqa: BLE001
+                pass
+
+
 def bus_from_device_path(path: str) -> str | None:
     """Guess the bus from a resolved ``/sys/class/bluetooth/hciN/device`` path."""
     p = path.lower()
@@ -145,15 +201,18 @@ async def _run(*argv: str, timeout: float = 3.0) -> str | None:
 
 
 async def list_host_radios(sysfs: Path = SYSFS_BLUETOOTH) -> list[RadioInfo]:
-    """Enumerate radios: sysfs for presence/bus, hciconfig for addresses and
-    power, rfkill for blocking. Any tool that is missing is skipped."""
+    """Enumerate radios: sysfs for presence and bus, BlueZ D-Bus (then
+    hciconfig) for addresses and power, rfkill for blocking. Any source that is
+    missing is skipped."""
     hcis = sorted(
         (p.name for p in sysfs.glob("hci*") if p.name[3:].isdigit()),
         key=lambda n: int(n[3:]),
     )
     if not hcis:
         return []
-    hciconfig_text, rfkill_text = await asyncio.gather(_run("hciconfig", "-a"), _run("rfkill", "-J"))
+    bluez, hciconfig_text, rfkill_text = await asyncio.gather(
+        _bluez_adapters(), _run("hciconfig", "-a"), _run("rfkill", "-J")
+    )
     hci_entries = parse_hciconfig(hciconfig_text) if hciconfig_text else {}
     blocked = parse_rfkill_json(rfkill_text) if rfkill_text else {}
     if not blocked:
@@ -164,11 +223,11 @@ async def list_host_radios(sysfs: Path = SYSFS_BLUETOOTH) -> list[RadioInfo]:
     radios: list[RadioInfo] = []
     for hci in hcis:
         entry = hci_entries.get(hci)
+        dbus_address, dbus_powered = bluez.get(hci, (None, None))
         address = _read_text(sysfs / hci / "address")
         if address and not _ADDR_RE.match(address.lower()):
             address = None
-        if address is None and entry is not None:
-            address = entry.address
+        address = address or dbus_address or (entry.address if entry is not None else None)
         if address is None:
             continue  # cannot identify this radio; the protocol pins radios by address
         bus = None
@@ -178,12 +237,13 @@ async def list_host_radios(sysfs: Path = SYSFS_BLUETOOTH) -> list[RadioInfo]:
             pass
         if bus is None and entry is not None:
             bus = entry.bus
+        powered = dbus_powered if dbus_powered is not None else (entry.up if entry is not None else None)
         radios.append(
             RadioInfo(
                 address=address.lower(),
                 hci=hci,
                 bus=bus,
-                powered=entry.up if entry is not None else None,
+                powered=powered,
                 blocked=blocked.get(hci),
             )
         )

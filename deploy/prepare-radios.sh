@@ -30,13 +30,23 @@ PY
 ) || exit 0
 
 hci_for_address() {
-    # Print the hciN whose BD address matches $1, using sysfs then hciconfig.
+    # Print the hciN whose BD address matches $1, using sysfs, then BlueZ, then hciconfig.
     for d in /sys/class/bluetooth/hci*; do
         [ -e "$d" ] || continue
         if [ -r "$d/address" ] && [ "$(tr 'A-Z' 'a-z' < "$d/address")" = "$1" ]; then
             basename "$d"; return 0
         fi
     done
+    # BlueZ over D-Bus (busctl ships with systemd), then the deprecated hciconfig.
+    if command -v busctl >/dev/null 2>&1; then
+        for d in /sys/class/bluetooth/hci*; do
+            [ -e "$d" ] || continue
+            h=$(basename "$d")
+            a=$(busctl get-property org.bluez "/org/bluez/$h" org.bluez.Adapter1 Address 2>/dev/null \
+                | awk '{ gsub(/"/, "", $2); print tolower($2) }')
+            if [ "$a" = "$1" ]; then echo "$h"; return 0; fi
+        done
+    fi
     if command -v hciconfig >/dev/null 2>&1; then
         hciconfig -a 2>/dev/null | awk -v want="$1" '
             /^hci[0-9]+:/ { hci = substr($1, 1, length($1) - 1) }
@@ -51,6 +61,9 @@ power_on() {
         # Unblock just this radio: find its rfkill id by device name.
         ids=$(rfkill -n -o ID,DEVICE 2>/dev/null | awk -v want="$hci" '$2 == want { print $1 }')
         for id in $ids; do rfkill unblock "$id" 2>/dev/null; done
+    fi
+    if command -v busctl >/dev/null 2>&1; then
+        busctl set-property org.bluez "/org/bluez/$hci" org.bluez.Adapter1 Powered b true 2>/dev/null && return 0
     fi
     if command -v hciconfig >/dev/null 2>&1; then
         hciconfig "$hci" up 2>/dev/null && return 0

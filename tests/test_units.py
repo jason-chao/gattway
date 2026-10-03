@@ -22,7 +22,7 @@ hci1:	Type: Primary  Bus: USB
 	Packet type: DM1 DM3 DM5 DH1 DH3 DH5 HV1 HV2 HV3
 	Link policy: RSWITCH SNIFF
 	Link mode: PERIPHERAL ACCEPT
-	Name: 'lab-pi'
+	Name: 'radio-host'
 	Class: 0x000000
 	Service Classes: Unspecified
 	Device Class: Miscellaneous,
@@ -152,3 +152,33 @@ def test_env_overrides():
     assert cfg.server.port == 8000
     assert cfg.server.token == ""
     assert cfg.fake is True
+
+
+def test_parse_bluez_objects():
+    from gattway.radios.hci import parse_bluez_objects
+
+    class V:  # stands in for dbus-fast's Variant
+        def __init__(self, value):
+            self.value = value
+
+    objects = {
+        "/org/bluez": {"org.bluez.AgentManager1": {}},
+        "/org/bluez/hci0": {"org.bluez.Adapter1": {"Address": V("00:11:22:33:44:55"), "Powered": V(True)}},
+        "/org/bluez/hci1": {"org.bluez.Adapter1": {"Address": "00:11:22:33:44:66", "Powered": False}},
+        "/org/bluez/hci1/dev_00_11_22_33_44_77": {"org.bluez.Device1": {"Address": V("00:11:22:33:44:77")}},
+        "/org/bluez/hci2": {"org.bluez.Adapter1": {"Address": V("not-an-address")}},
+    }
+    assert parse_bluez_objects(objects) == {
+        "hci0": ("00:11:22:33:44:55", True),
+        "hci1": ("00:11:22:33:44:66", False),
+        "hci2": (None, None),
+    }
+    assert parse_bluez_objects({}) == {}
+
+
+def test_bluez_adapters_without_a_system_bus_is_empty():
+    import asyncio
+
+    from gattway.radios.hci import _bluez_adapters
+
+    assert isinstance(asyncio.run(_bluez_adapters(timeout=0.5)), dict)

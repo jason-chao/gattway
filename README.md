@@ -1,10 +1,14 @@
 # gattway
 
 gattway lends a host's Bluetooth Low Energy radios to programs on the network.
-It runs on the machine that has the radios (a Raspberry Pi, say) and exposes
-them over one WebSocket. A client scans, connects to a device, writes to and
-reads from its characteristics, and receives its notifications. gattway knows
-nothing about what the devices are.
+It runs on the machine that has the radios and exposes them over one WebSocket.
+A client scans, connects to a device, writes to and reads from its
+characteristics, and receives its notifications. gattway knows nothing about
+what the devices are.
+
+It runs on any Linux host with BlueZ 5, Python 3.11+ and a Bluetooth LE adapter:
+a desktop, a server, a mini PC, or a single-board computer such as a Raspberry
+Pi. The fake backend (`--fake`) runs anywhere Python does.
 
 - Device-agnostic: UUIDs and bytes in, UUIDs and bytes out.
 - Several radios per host, pinned by BD address, each holding several devices.
@@ -48,7 +52,7 @@ See [gattway.example.toml](gattway.example.toml).
 
 ```toml
 [instance]
-name = "lab-pi"           # default: hostname
+name = "radio-host"       # default: hostname
 
 [server]
 host = "0.0.0.0"
@@ -74,15 +78,16 @@ substitutes another radio. With no radios configured, every radio present is
 enabled and the first is the default. If radios are configured and none is
 marked `default`, the first enabled one is.
 
-## Deploying on a Raspberry Pi
+## Running it as a service
 
 ```sh
 sudo deploy/install.sh
 ```
 
-This creates a venv in `/opt/gattway`, installs a systemd unit that runs as
-your user, powers on only the enabled radios before start, and enables it.
-Details, radio pinning and troubleshooting: [deploy/README.md](deploy/README.md).
+On a Linux host with systemd, this creates a venv in `/opt/gattway`, installs a
+unit that runs as your user, powers on only the enabled radios before start, and
+enables it. Packages per distribution, radio pinning and troubleshooting:
+[deploy/README.md](deploy/README.md).
 
 ## The Python client in ten lines
 

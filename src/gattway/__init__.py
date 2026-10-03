@@ -1,6 +1,6 @@
 """gattway: lend a host's Bluetooth Low Energy radios over a WebSocket."""
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 PROTOCOL = "gattway"
 PROTOCOL_VERSION = 1

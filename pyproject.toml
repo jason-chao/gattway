@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gattway"
-version = "0.1.0"
+version = "0.1.1"
 description = "Lend a host's Bluetooth Low Energy radios to programs on the network over a WebSocket."
 readme = "README.md"
 license = {text = "MIT"}

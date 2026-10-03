@@ -3,7 +3,7 @@
 
 [instance]
 # How this instance names itself in hello/status. Defaults to the hostname.
-name = "lab-pi"
+name = "radio-host"
 
 [server]
 host = "0.0.0.0"
@@ -26,7 +26,7 @@ enabled = true
 default = true
 
 [[radio]]
-label = "onboard"
+label = "builtin"
 address = "00:11:22:33:44:66"
 enabled = false
 default = false

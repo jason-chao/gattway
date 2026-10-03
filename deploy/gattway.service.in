@@ -8,8 +8,8 @@ Wants=bluetooth.target network-online.target
 [Service]
 Type=simple
 User=@USER@
-Group=bluetooth
-SupplementaryGroups=bluetooth
+# Kept only where the host has a bluetooth group (install.sh decides).
+#BTGROUP SupplementaryGroups=bluetooth
 WorkingDirectory=@INSTALL_DIR@
 Environment=GATTWAY_CONFIG=@CONFIG@
 # Optional extra settings (GATTWAY_TOKEN=..., GATTWAY_PORT=...). Mode 0600.

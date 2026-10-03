@@ -53,7 +53,7 @@ Sent once, first.
 
 ```json
 {"type": "hello", "protocol": "gattway", "version": 1, "t": 1727950000.123,
- "instance": {"name": "lab-pi", "host": "lab-pi", "software": "gattway 0.1.0"},
+ "instance": {"name": "radio-host", "host": "radio-host", "software": "gattway 0.1.1"},
  "radios": [...], "devices": [...]}
 ```
 
@@ -63,7 +63,7 @@ Sent on every change and at least every 5 s. The whole state, so a client needs 
 
 ```json
 {"type": "status", "t": 1727950005.001,
- "instance": {"name": "lab-pi", "host": "lab-pi", "software": "gattway 0.1.0"},
+ "instance": {"name": "radio-host", "host": "radio-host", "software": "gattway 0.1.1"},
  "radios": [
    {"label": "usb", "address": "ac:a7:f1:b0:28:53", "hci": "hci1", "bus": "usb", "enabled": true, "default": true,
     "present": true, "powered": true, "blocked": false, "scanning": false},
