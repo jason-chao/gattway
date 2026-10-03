@@ -1,0 +1,27 @@
+# systemd unit for gattway. Rendered by deploy/install.sh; the @TOKENS@ are
+# replaced with the install user, directory and config path.
+[Unit]
+Description=gattway: BLE radios over WebSocket
+After=bluetooth.target network-online.target
+Wants=bluetooth.target network-online.target
+
+[Service]
+Type=simple
+User=@USER@
+Group=bluetooth
+SupplementaryGroups=bluetooth
+WorkingDirectory=@INSTALL_DIR@
+Environment=GATTWAY_CONFIG=@CONFIG@
+# Optional extra settings (GATTWAY_TOKEN=..., GATTWAY_PORT=...). Mode 0600.
+EnvironmentFile=-@INSTALL_DIR@/gattway.env
+# Clear rfkill and power on only the radios the config enables.
+ExecStartPre=+@INSTALL_DIR@/prepare-radios.sh @CONFIG@
+ExecStart=@INSTALL_DIR@/.venv/bin/gattway --config @CONFIG@
+# SIGTERM makes gattway run every farewell and disconnect before it exits.
+KillSignal=SIGTERM
+TimeoutStopSec=20
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
