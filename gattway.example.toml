@@ -1,0 +1,36 @@
+# gattway configuration. Copy to /etc/gattway/gattway.toml (or point
+# GATTWAY_CONFIG at it). Every key is optional.
+
+[instance]
+# How this instance names itself in hello/status. Defaults to the hostname.
+name = "lab-pi"
+
+[server]
+host = "0.0.0.0"
+port = 7120
+# Clients must pass this as ?token= in the URL. Empty means no token.
+token = ""
+# Advanced timing (seconds / milliseconds). Defaults follow the protocol.
+# hb_timeout_s = 6.0
+# status_interval_s = 5.0
+# farewell_gap_s = 0.02
+# late_ms = 250
+
+# Radios are pinned by BD address because hciN numbering changes when a USB
+# radio re-enumerates. With no [[radio]] entries at all, every radio present is
+# enabled and the first one is the default.
+[[radio]]
+label = "usb"
+address = "00:11:22:33:44:55"
+enabled = true
+default = true
+
+[[radio]]
+label = "onboard"
+address = "00:11:22:33:44:66"
+enabled = false
+default = false
+
+[fake]
+# Serve a scripted fake device instead of real radios. Also GATTWAY_FAKE=1.
+enabled = false

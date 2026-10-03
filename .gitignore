@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.eggs/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Environments
+.venv/
+venv/
+.env
+
+# Local configuration
+gattway.toml
+deploy/*.local
+deploy/gattway.service
+
+# Editors
+.idea/
+.vscode/
+*.swp

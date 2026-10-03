@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gattway"
+version = "0.1.0"
+description = "Lend a host's Bluetooth Low Energy radios to programs on the network over a WebSocket."
+readme = "README.md"
+license = {text = "MIT"}
+authors = [{name = "Jason Chao"}]
+requires-python = ">=3.11"
+dependencies = [
+    "websockets>=12",
+    "bleak>=0.22",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Topic :: System :: Networking",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-asyncio"]
+
+[project.scripts]
+gattway = "gattway.cli:main_server"
+gattway-cli = "gattway.cli:main_client"
+
+[project.urls]
+Homepage = "https://github.com/jason-chao/gattway"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
